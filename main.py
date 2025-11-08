@@ -112,25 +112,32 @@ elif page == "EDA":
     
     # Generate sample data for demonstration
     @st.cache_data
-    def generate_sample_data():
-        np.random.seed(42)
-        n_samples = 1000
-        
-        data = {
-            'Age': np.random.normal(35, 10, n_samples).astype(int),
-            'Income': np.random.normal(50000, 15000, n_samples),
-            'Education_Years': np.random.normal(16, 3, n_samples),
-            'Experience': np.random.normal(10, 5, n_samples),
-            'Score': np.random.normal(75, 15, n_samples)
-        }
-        
-        # Add some correlation
-        data['Income'] = data['Income'] + data['Education_Years'] * 2000 + np.random.normal(0, 5000, n_samples)
-        data['Score'] = data['Score'] + data['Experience'] * 2 + np.random.normal(0, 10, n_samples)
-        
-        return pd.DataFrame(data)
+    def load_airbnb_data():
+        try:
+            df = pd.read_csv('Airbnb_site_hotel new.csv')
+            
+            # Clean the data
+            # Convert price to numeric (remove commas if any)
+            df['price'] = pd.to_numeric(df['price'], errors='coerce')
+            
+            # Convert other numeric columns with proper handling of commas as decimal separators
+            numeric_columns = ['accommodates', 'bathrooms', 'bedrooms', 'beds', 
+                              'total reviewers number', 'host total listings count']
+            
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
+            
+            # Fill missing values
+            df = df.fillna(0)
+            
+            return df
+            
+        except Exception as e:
+            st.error(f"Error loading Airbnb data: {e}")
+            return pd.DataFrame()
     
-    df = generate_sample_data()
+    df = load_airbnb_data()
     
     st.subheader("📋 Dataset Overview")
     col1, col2, col3, col4 = st.columns(4)
@@ -155,70 +162,146 @@ elif page == "EDA":
     # Visualizations
     st.subheader("📊 Data Visualizations")
     
-    # Distribution plots
+    # Key insights about Airbnb data
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        avg_price = df['price'].mean()
+        st.metric("Average Price", f"${avg_price:.2f}")
+    with col2:
+        total_listings = len(df)
+        st.metric("Total Listings", f"{total_listings:,}")
+    with col3:
+        unique_cities = df['city'].nunique() if 'city' in df.columns else 0
+        st.metric("Cities", unique_cities)
+    
+    # Price distribution
+    st.subheader("💰 Price Analysis")
     col1, col2 = st.columns(2)
     
     with col1:
-        feature = st.selectbox("Select feature for distribution:", df.columns)
-        fig = px.histogram(df, x=feature, title=f"Distribution of {feature}")
-        st.plotly_chart(fig, use_container_width=True)
+        fig = px.histogram(df, x='price', title="Price Distribution", 
+                          labels={'price': 'Price ($)', 'count': 'Number of Listings'})
+        st.plotly_chart(fig, width='stretch')
     
     with col2:
-        fig = px.box(df, y=feature, title=f"Box Plot of {feature}")
-        st.plotly_chart(fig, use_container_width=True)
+        if 'room_type' in df.columns:
+            fig = px.box(df, x='room_type', y='price', title="Price by Room Type")
+            st.plotly_chart(fig, width='stretch')
     
-    # Correlation heatmap
+    # Room type analysis
+    if 'room_type' in df.columns:
+        st.subheader("🏠 Room Type Distribution")
+        room_counts = df['room_type'].value_counts()
+        fig = px.pie(values=room_counts.values, names=room_counts.index, 
+                     title="Distribution of Room Types")
+        st.plotly_chart(fig, width='stretch')
+    
+    # Geographic analysis
+    if 'city' in df.columns:
+        st.subheader("🌍 Geographic Distribution")
+        city_counts = df['city'].value_counts().head(10)
+        fig = px.bar(x=city_counts.values, y=city_counts.index, 
+                     orientation='h', title="Top 10 Cities by Listings")
+        st.plotly_chart(fig, width='stretch')
+    
+    # Correlation heatmap for numeric features
     st.subheader("🔥 Correlation Matrix")
-    corr_matrix = df.corr()
-    fig = px.imshow(corr_matrix, 
-                    text_auto=True, 
-                    aspect="auto",
-                    title="Feature Correlation Heatmap")
-    st.plotly_chart(fig, use_container_width=True)
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    if len(numeric_cols) > 1:
+        corr_matrix = df[numeric_cols].corr()
+        fig = px.imshow(corr_matrix, 
+                        text_auto=True, 
+                        aspect="auto",
+                        title="Numeric Features Correlation")
+        st.plotly_chart(fig, width='stretch')
     
-    # Scatter plot
+    # Interactive scatter plot
     st.subheader("🎯 Feature Relationships")
+    numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
+    
     col1, col2 = st.columns(2)
-    
     with col1:
-        x_feature = st.selectbox("Select X-axis:", df.columns, index=0)
+        x_feature = st.selectbox("Select X-axis:", numeric_features, 
+                                index=numeric_features.index('price') if 'price' in numeric_features else 0)
     with col2:
-        y_feature = st.selectbox("Select Y-axis:", df.columns, index=1)
+        y_feature = st.selectbox("Select Y-axis:", numeric_features, 
+                                index=numeric_features.index('accommodates') if 'accommodates' in numeric_features else 1)
     
-    fig = px.scatter(df, x=x_feature, y=y_feature, 
-                     title=f"{x_feature} vs {y_feature}")
-    st.plotly_chart(fig, use_container_width=True)
+    if 'room_type' in df.columns:
+        fig = px.scatter(df, x=x_feature, y=y_feature, color='room_type',
+                         title=f"{x_feature} vs {y_feature}")
+    else:
+        fig = px.scatter(df, x=x_feature, y=y_feature,
+                         title=f"{x_feature} vs {y_feature}")
+    st.plotly_chart(fig, width='stretch')
 
 # Prediction Page
 elif page == "Prediction":
     st.title("🔮 Prediction Model")
     st.markdown("---")
     
-    # Generate sample data
+    # Load Airbnb data for prediction
     @st.cache_data
-    def generate_prediction_data():
-        np.random.seed(42)
-        n_samples = 1000
-        
-        X = np.random.randn(n_samples, 4)
-        y = 2*X[:, 0] + 3*X[:, 1] - X[:, 2] + 0.5*X[:, 3] + np.random.randn(n_samples) * 0.5
-        
-        feature_names = ['Feature_1', 'Feature_2', 'Feature_3', 'Feature_4']
-        df = pd.DataFrame(X, columns=feature_names)
-        df['Target'] = y
-        
-        return df
+    def load_airbnb_for_prediction():
+        try:
+            df = pd.read_csv('Airbnb_site_hotel new.csv')
+            
+            # Clean the data for prediction
+            df['price'] = pd.to_numeric(df['price'], errors='coerce')
+            
+            # Convert numeric columns
+            numeric_columns = ['accommodates', 'bathrooms', 'bedrooms', 'beds', 
+                              'total reviewers number', 'host total listings count']
+            
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
+            
+            # Remove rows with missing price (our target)
+            df = df.dropna(subset=['price'])
+            
+            # Fill other missing values
+            df = df.fillna(0)
+            
+            return df
+            
+        except Exception as e:
+            st.error(f"Error loading Airbnb data for prediction: {e}")
+            return pd.DataFrame()
     
-    df = generate_prediction_data()
+    df = load_airbnb_for_prediction()
     
-    st.subheader("🎯 Model Training")
+    if len(df) == 0:
+        st.error("No data available for prediction.")
+        st.stop()
     
-    # Model training
-    X = df.drop('Target', axis=1)
-    y = df['Target']
+    st.subheader("🎯 Airbnb Price Prediction Model")
     
+    # Select features for prediction
+    feature_columns = ['accommodates', 'bathrooms', 'bedrooms', 'beds', 
+                      'total reviewers number', 'host total listings count']
+    
+    # Filter available columns
+    available_features = [col for col in feature_columns if col in df.columns and df[col].dtype in ['int64', 'float64']]
+    
+    if len(available_features) == 0:
+        st.error("No suitable numeric features found for prediction.")
+        st.stop()
+    
+    # Prepare data
+    X = df[available_features]
+    y = df['price']
+    
+    # Remove outliers (prices above 95th percentile)
+    price_threshold = y.quantile(0.95)
+    mask = y <= price_threshold
+    X = X[mask]
+    y = y[mask]
+    
+    # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
+    # Train model
     model = LinearRegression()
     model.fit(X_train, y_train)
     
@@ -251,46 +334,53 @@ elif page == "Prediction":
                             mode='lines', name='Perfect Prediction',
                             line=dict(dash='dash', color='red')))
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     
     # Feature importance
     st.subheader("🎯 Feature Importance")
     feature_importance = pd.DataFrame({
-        'Feature': X.columns,
+        'Feature': available_features,
         'Importance': np.abs(model.coef_)
     }).sort_values('Importance', ascending=False)
     
     fig = px.bar(feature_importance, x='Feature', y='Importance',
-                 title="Feature Importance (Absolute Coefficients)")
-    st.plotly_chart(fig, use_container_width=True)
+                 title="Feature Importance for Price Prediction")
+    st.plotly_chart(fig, width='stretch')
     
     # Interactive prediction
-    st.subheader("🔮 Make a Prediction")
-    st.write("Adjust the feature values below to make a prediction:")
+    st.subheader("🔮 Predict Airbnb Price")
+    st.write("Adjust the values below to predict the Airbnb price:")
     
-    col1, col2 = st.columns(2)
+    # Create input sliders based on available features
+    user_input = {}
+    cols = st.columns(2)
     
-    with col1:
-        feature_1 = st.slider("Feature 1", -3.0, 3.0, 0.0, 0.1)
-        feature_2 = st.slider("Feature 2", -3.0, 3.0, 0.0, 0.1)
-    
-    with col2:
-        feature_3 = st.slider("Feature 3", -3.0, 3.0, 0.0, 0.1)
-        feature_4 = st.slider("Feature 4", -3.0, 3.0, 0.0, 0.1)
+    for i, feature in enumerate(available_features):
+        col_idx = i % 2
+        with cols[col_idx]:
+            min_val = float(X[feature].min())
+            max_val = float(X[feature].max())
+            mean_val = float(X[feature].mean())
+            
+            user_input[feature] = st.slider(
+                f"{feature.replace('_', ' ').title()}", 
+                min_val, max_val, mean_val, 
+                step=(max_val - min_val) / 100
+            )
     
     # Make prediction
-    input_features = np.array([[feature_1, feature_2, feature_3, feature_4]])
-    prediction = model.predict(input_features)[0]
+    input_array = np.array([[user_input[feature] for feature in available_features]])
+    predicted_price = model.predict(input_array)[0]
     
-    st.success(f"🎯 Predicted Value: {prediction:.3f}")
+    st.success(f"💰 Predicted Airbnb Price: ${predicted_price:.2f}")
     
     # Show input values
     st.subheader("📊 Input Summary")
     input_df = pd.DataFrame({
-        'Feature': ['Feature_1', 'Feature_2', 'Feature_3', 'Feature_4'],
-        'Value': [feature_1, feature_2, feature_3, feature_4]
+        'Feature': [feature.replace('_', ' ').title() for feature in available_features],
+        'Value': [user_input[feature] for feature in available_features]
     })
-    st.dataframe(input_df, use_container_width=True)
+    st.dataframe(input_df, width='stretch')
 
 # Footer
 st.markdown("---")
