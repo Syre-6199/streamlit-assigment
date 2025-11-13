@@ -614,18 +614,55 @@ elif page == "Prediction":
     
     # Actual vs Predicted plot
     st.subheader("📈 Model Performance")
+    
+    # Explanation of what we're predicting
+    st.info(f"""
+    🎯 **What We're Predicting:** Airbnb listing **PRICE** (in dollars per night)
+    
+    📊 **Features Used for Prediction:** {', '.join([f.replace('_', ' ').title() for f in available_features])}
+    
+    🎪 **How It Works:** 
+    - **Actual Values (X-axis):** Real prices from Airbnb listings in our dataset
+    - **Predicted Values (Y-axis):** What our AI model guessed the price should be
+    - **Goal:** Points closer to the red dashed line = better predictions
+    - **Perfect Prediction:** If our model was 100% accurate, all dots would be on the red line
+    """)
+    
     fig = px.scatter(x=y_test, y=y_pred, 
-                     title="Actual vs Predicted Values",
-                     labels={'x': 'Actual Values', 'y': 'Predicted Values'})
+                     title="Actual vs Predicted Prices ($)",
+                     labels={'x': 'Actual Price ($)', 'y': 'Predicted Price ($)'})
     
     # Add perfect prediction line
     min_val = min(y_test.min(), y_pred.min())
     max_val = max(y_test.max(), y_pred.max())
     fig.add_trace(go.Scatter(x=[min_val, max_val], y=[min_val, max_val],
-                            mode='lines', name='Perfect Prediction',
-                            line=dict(dash='dash', color='red')))
+                            mode='lines', name='Perfect Prediction Line',
+                            line=dict(dash='dash', color='red', width=3)))
     
     st.plotly_chart(fig, width='stretch')
+    
+    # Performance interpretation
+    if r2 > 0.7:
+        performance = "Excellent"
+        color = "success"
+    elif r2 > 0.5:
+        performance = "Good" 
+        color = "info"
+    elif r2 > 0.3:
+        performance = "Fair"
+        color = "warning"
+    else:
+        performance = "Needs Improvement"
+        color = "error"
+    
+    if color == "success":
+        st.success(f"🎉 **{performance} Model Performance!** Our AI can predict Airbnb prices with {r2*100:.1f}% accuracy using property features.")
+    elif color == "info":
+        st.info(f"✅ **{performance} Model Performance!** Our AI can predict Airbnb prices with {r2*100:.1f}% accuracy using property features.")
+    elif color == "warning":
+        st.warning(f"⚠️ **{performance} Model Performance.** Our AI can predict Airbnb prices with {r2*100:.1f}% accuracy using property features.")
+    else:
+        st.error(f"❌ **{performance}** - Our AI can predict Airbnb prices with {r2*100:.1f}% accuracy using property features.")
     
     # Feature importance
     st.subheader("🎯 Feature Importance")
