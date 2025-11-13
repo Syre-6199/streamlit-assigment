@@ -480,12 +480,13 @@ elif page == "EDA":
         y_feature = st.selectbox("Select Second Feature:", numeric_features, 
                                 index=numeric_features.index('accommodates') if 'accommodates' in numeric_features else 1)
     
-    # Create a cleaner scatter plot with trend line
-    fig = px.scatter(df.sample(min(1000, len(df))), x=x_feature, y=y_feature, 
+    # Create a cleaner scatter plot
+    sample_df = df.sample(min(1000, len(df))) if len(df) > 1000 else df
+    fig = px.scatter(sample_df, x=x_feature, y=y_feature, 
                      title=f"Relationship: {x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()}",
-                     trendline="ols",  # Add trend line
-                     opacity=0.6)
-    fig.update_traces(marker=dict(size=8))
+                     opacity=0.7)
+    fig.update_traces(marker=dict(size=6, color='steelblue'))
+    fig.update_layout(showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
     
     # Explain the relationship
