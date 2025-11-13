@@ -406,26 +406,107 @@ elif page == "EDA":
         st.plotly_chart(fig, width='stretch')
         st.warning("🔍 **Statistical Insight:** Strong correlations (darker colors) reveal relationships between features. High positive correlations suggest features move together, while negative correlations indicate inverse relationships.")
     
-    # Interactive scatter plot
-    st.subheader("🎯 Feature Relationships")
+    # Feature Relationships Analysis
+    st.subheader("🎯 Feature Relationships & Comparisons")
+    
+    # Price by different categories - easier to understand
+    st.markdown("### 💰 **Price Analysis by Categories**")
+    
+    if 'room_type' in df.columns:
+        # Average price by room type - Bar chart
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            avg_price_by_room = df.groupby('room_type')['price'].mean().sort_values(ascending=False)
+            fig = px.bar(x=avg_price_by_room.index, y=avg_price_by_room.values,
+                        title="Average Price by Room Type",
+                        labels={'x': 'Room Type', 'y': 'Average Price ($)'},
+                        color=avg_price_by_room.values,
+                        color_continuous_scale='viridis')
+            st.plotly_chart(fig, use_container_width=True)
+            st.info("🏠 **Clear Insight:** This shows which room types cost more on average. Entire homes are typically the most expensive.")
+        
+        with col2:
+            # Count of listings by room type
+            room_counts = df['room_type'].value_counts()
+            fig = px.bar(x=room_counts.index, y=room_counts.values,
+                        title="Number of Listings by Room Type",
+                        labels={'x': 'Room Type', 'y': 'Number of Listings'},
+                        color=room_counts.values,
+                        color_continuous_scale='plasma')
+            st.plotly_chart(fig, use_container_width=True)
+            st.info("📊 **Market Share:** This shows which types of properties are most common in the market.")
+    
+    # Price ranges analysis
+    st.markdown("### 💵 **Price Range Analysis**")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Create price ranges for better understanding
+        df['price_range'] = pd.cut(df['price'], 
+                                  bins=[0, 50, 100, 200, 500, float('inf')], 
+                                  labels=['Under $50', '$50-100', '$100-200', '$200-500', 'Over $500'])
+        price_range_counts = df['price_range'].value_counts().sort_index()
+        
+        fig = px.bar(x=price_range_counts.index, y=price_range_counts.values,
+                    title="Distribution of Listings by Price Range",
+                    labels={'x': 'Price Range', 'y': 'Number of Listings'},
+                    color=price_range_counts.values,
+                    color_continuous_scale='blues')
+        st.plotly_chart(fig, use_container_width=True)
+        st.success("💡 **Easy Understanding:** Most listings fall in the $50-200 range, making it the sweet spot for both hosts and guests.")
+    
+    with col2:
+        # Accommodates vs average price
+        if 'accommodates' in df.columns:
+            avg_price_by_guests = df.groupby('accommodates')['price'].mean().head(10)
+            fig = px.bar(x=avg_price_by_guests.index, y=avg_price_by_guests.values,
+                        title="Average Price by Number of Guests",
+                        labels={'x': 'Number of Guests', 'y': 'Average Price ($)'},
+                        color=avg_price_by_guests.values,
+                        color_continuous_scale='reds')
+            st.plotly_chart(fig, use_container_width=True)
+            st.info("👥 **Capacity Pricing:** Larger properties that accommodate more guests typically cost more per night.")
+    
+    # Interactive comparison tool
+    st.markdown("### 🔍 **Compare Any Two Features**")
     numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
     
     col1, col2 = st.columns(2)
     with col1:
-        x_feature = st.selectbox("Select X-axis:", numeric_features, 
+        x_feature = st.selectbox("Select First Feature:", numeric_features, 
                                 index=numeric_features.index('price') if 'price' in numeric_features else 0)
     with col2:
-        y_feature = st.selectbox("Select Y-axis:", numeric_features, 
+        y_feature = st.selectbox("Select Second Feature:", numeric_features, 
                                 index=numeric_features.index('accommodates') if 'accommodates' in numeric_features else 1)
     
-    if 'room_type' in df.columns:
-        fig = px.scatter(df, x=x_feature, y=y_feature, color='room_type',
-                         title=f"{x_feature} vs {y_feature}")
+    # Create a cleaner scatter plot with trend line
+    fig = px.scatter(df.sample(min(1000, len(df))), x=x_feature, y=y_feature, 
+                     title=f"Relationship: {x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()}",
+                     trendline="ols",  # Add trend line
+                     opacity=0.6)
+    fig.update_traces(marker=dict(size=8))
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Explain the relationship
+    correlation = df[x_feature].corr(df[y_feature])
+    if correlation > 0.5:
+        relationship = "Strong Positive"
+        explanation = f"As {x_feature.replace('_', ' ')} increases, {y_feature.replace('_', ' ')} tends to increase significantly."
+    elif correlation > 0.2:
+        relationship = "Moderate Positive"  
+        explanation = f"As {x_feature.replace('_', ' ')} increases, {y_feature.replace('_', ' ')} tends to increase somewhat."
+    elif correlation < -0.5:
+        relationship = "Strong Negative"
+        explanation = f"As {x_feature.replace('_', ' ')} increases, {y_feature.replace('_', ' ')} tends to decrease significantly."
+    elif correlation < -0.2:
+        relationship = "Moderate Negative"
+        explanation = f"As {x_feature.replace('_', ' ')} increases, {y_feature.replace('_', ' ')} tends to decrease somewhat."
     else:
-        fig = px.scatter(df, x=x_feature, y=y_feature,
-                         title=f"{x_feature} vs {y_feature}")
-    st.plotly_chart(fig, width='stretch')
-    st.success("📊 **Analysis Tool:** This interactive scatter plot helps identify patterns and relationships between any two numeric variables. Look for trends, clusters, or outliers that provide business insights.")
+        relationship = "Weak/No"
+        explanation = f"There's little to no clear relationship between {x_feature.replace('_', ' ')} and {y_feature.replace('_', ' ')}."
+    
+    st.warning(f"📈 **{relationship} Relationship** (Correlation: {correlation:.3f}): {explanation}")
 
 # Prediction Page
 elif page == "Prediction":
