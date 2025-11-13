@@ -580,7 +580,6 @@ elif page == "Prediction":
             info = feature_info.get(feature, {'label': feature.replace('_', ' ').title(), 'default': 1, 'min': 0, 'max': 100})
             
             if 'step' in info:
-                # For features that can have decimal values (like bathrooms)
                 user_input[feature] = st.number_input(
                     info['label'],
                     min_value=info['min'],
@@ -589,7 +588,6 @@ elif page == "Prediction":
                     step=info['step']
                 )
             else:
-                # For features that should be whole numbers (bedrooms, guests, beds, etc.)
                 user_input[feature] = st.number_input(
                     info['label'],
                     min_value=info['min'],
