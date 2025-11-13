@@ -567,7 +567,7 @@ elif page == "Prediction":
     # Define user-friendly labels and reasonable defaults
     feature_info = {
         'accommodates': {'label': 'Number of Guests', 'default': 2, 'min': 1, 'max': 20},
-        'bathrooms': {'label': 'Number of Bathrooms', 'default': 1.0, 'min': 0.5, 'max': 10.0, 'step': 0.5},
+        'bathrooms': {'label': 'Number of Bathrooms', 'default': 1, 'min': 1, 'max': 10},
         'bedrooms': {'label': 'Number of Bedrooms', 'default': 1, 'min': 0, 'max': 10},
         'beds': {'label': 'Number of Beds', 'default': 1, 'min': 1, 'max': 20},
         'total reviewers number': {'label': 'Total Reviews', 'default': 5, 'min': 0, 'max': 500},
