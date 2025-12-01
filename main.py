@@ -905,17 +905,14 @@ elif page == "Prediction":
                 )
     # end for available_features
 
-    # Room type selection matrix (horizontal checkboxes) — optional selection can adjust prediction
-    selected_room_types = []
+    # Room type selection (single choice) — use a dropdown to avoid multiple selections
+    selected_room_type = None
     if room_type_ratios:
-        st.markdown("**Select room type(s) — affects predicted price (heuristic adjustment):**")
-        cols_rt = st.columns(len(room_type_ratios))
-        for idx, (rt, ratio) in enumerate(room_type_ratios.items()):
-            with cols_rt[idx]:
-                # use a stable key per room type
-                checked = st.checkbox(rt, value=False, key=f"rt_{idx}")
-                if checked:
-                    selected_room_types.append(rt)
+        st.markdown("**Select room type — affects predicted price (heuristic adjustment):**")
+        options = ['(none)'] + list(room_type_ratios.keys())
+        chosen = st.selectbox("Room type:", options, index=0, key='room_type_select')
+        if chosen != '(none)':
+            selected_room_type = chosen
     
     # Make prediction
     input_array = np.array([[user_input[feature] for feature in available_features]])
@@ -923,20 +920,18 @@ elif page == "Prediction":
     predicted_price_log = pipeline.predict(input_array)[0]
     predicted_price = np.expm1(predicted_price_log)
 
-    # Apply room_type heuristic adjustment if the user selected any
+    # Apply room_type heuristic adjustment if the user selected one
     adjusted_price = predicted_price
-    if selected_room_types and room_type_ratios:
+    if selected_room_type and room_type_ratios:
         try:
-            # average the ratios for multiple selections
-            ratios = [room_type_ratios.get(rt, 1.0) for rt in selected_room_types]
-            adj_ratio = float(np.mean(ratios)) if len(ratios) > 0 else 1.0
+            adj_ratio = float(room_type_ratios.get(selected_room_type, 1.0))
             adjusted_price = predicted_price * adj_ratio
         except Exception:
             adjusted_price = predicted_price
     
     if adjusted_price != predicted_price:
         st.success(f"💰 Predicted Airbnb Price: ${adjusted_price:.2f} (adjusted for selected room type)")
-        st.caption(f"Base predicted price: ${predicted_price:.2f}. Adjustment applied from selected room type(s). This is a simple heuristic — consider retraining model including room_type for more accurate results.")
+        st.caption(f"Base predicted price: ${predicted_price:.2f}. Adjustment applied from selected room type. This is a simple heuristic — consider retraining the model including room_type for more accurate results.")
     else:
         st.success(f"💰 Predicted Airbnb Price: ${predicted_price:.2f}")
     
