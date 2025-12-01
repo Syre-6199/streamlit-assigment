@@ -499,7 +499,7 @@ elif page == "EDA":
             st.plotly_chart(fig, use_container_width=True)
             st.info("👥 **Capacity Pricing:** Larger properties that accommodate more guests typically cost more per night.")
     
-    # Interactive comparison tool
+    # Interactive comparison tool with histograms
     st.markdown("### 🔍 **Compare Any Two Features**")
     numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
     
@@ -511,19 +511,36 @@ elif page == "EDA":
         y_feature = st.selectbox("Select Second Feature:", numeric_features, 
                                 index=numeric_features.index('accommodates') if 'accommodates' in numeric_features else 1)
     
-    # Create a simple, clean scatter plot with larger sample for clarity
-    sample_size = min(500, len(df))
-    sample_df = df.sample(sample_size, random_state=42)
+    # Create individual histograms for each feature
+    st.markdown(f"#### Distribution Analysis")
+    hist_col1, hist_col2 = st.columns(2)
     
-    fig = px.scatter(sample_df, x=x_feature, y=y_feature,
-                     title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()}",
-                     labels={x_feature: x_feature.replace('_', ' ').title(),
-                             y_feature: y_feature.replace('_', ' ').title()},
-                     color_discrete_sequence=['#1f77b4'])
+    with hist_col1:
+        # Histogram for first feature
+        fig_x = px.histogram(df, x=x_feature, nbins=30,
+                            title=f"Distribution of {x_feature.replace('_', ' ').title()}",
+                            labels={x_feature: x_feature.replace('_', ' ').title()},
+                            color_discrete_sequence=['#1f77b4'])
+        fig_x.update_layout(showlegend=False)
+        st.plotly_chart(fig_x, use_container_width=True)
     
-    fig.update_traces(marker=dict(size=5, opacity=0.6))
-    fig.update_layout(showlegend=False, hovermode='closest')
-    st.plotly_chart(fig, use_container_width=True)
+    with hist_col2:
+        # Histogram for second feature
+        fig_y = px.histogram(df, x=y_feature, nbins=30,
+                            title=f"Distribution of {y_feature.replace('_', ' ').title()}",
+                            labels={y_feature: y_feature.replace('_', ' ').title()},
+                            color_discrete_sequence=['#ff7f0e'])
+        fig_y.update_layout(showlegend=False)
+        st.plotly_chart(fig_y, use_container_width=True)
+    
+    # Create 2D histogram showing relationship
+    st.markdown(f"#### Relationship Analysis")
+    fig_2d = px.density_heatmap(df, x=x_feature, y=y_feature, nbinsx=20, nbinsy=20,
+                                title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Density Heatmap",
+                                labels={x_feature: x_feature.replace('_', ' ').title(),
+                                       y_feature: y_feature.replace('_', ' ').title()},
+                                color_continuous_scale='Blues')
+    st.plotly_chart(fig_2d, use_container_width=True)
     
     # Show correlation statistics
     correlation = df[x_feature].corr(df[y_feature])
