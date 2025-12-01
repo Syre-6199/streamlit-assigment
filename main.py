@@ -447,20 +447,10 @@ elif page == "EDA":
     st.markdown("### 💰 **Price Analysis by Categories**")
     
     if 'room_type' in df.columns:
-        # Average price by room type - Bar chart
+        # Show count of listings by room type (avoid duplicate avg price chart)
         col1, col2 = st.columns(2)
         
         with col1:
-            avg_price_by_room = df.groupby('room_type')['price'].mean().sort_values(ascending=False)
-            fig = px.bar(x=avg_price_by_room.index, y=avg_price_by_room.values,
-                        title="Average Price by Room Type",
-                        labels={'x': 'Room Type', 'y': 'Average Price ($)'},
-                        color=avg_price_by_room.values,
-                        color_continuous_scale='viridis')
-            st.plotly_chart(fig, use_container_width=True)
-            st.info("🏠 **Clear Insight:** This shows which room types cost more on average. Entire homes are typically the most expensive.")
-        
-        with col2:
             # Count of listings by room type
             room_counts = df['room_type'].value_counts()
             fig = px.bar(x=room_counts.index, y=room_counts.values,
@@ -470,6 +460,17 @@ elif page == "EDA":
                         color_continuous_scale='plasma')
             st.plotly_chart(fig, use_container_width=True)
             st.info("📊 **Market Share:** This shows which types of properties are most common in the market.")
+        
+        with col2:
+            # Median price by room type for comparison
+            median_price_by_room = df.groupby('room_type')['price'].median().sort_values(ascending=False)
+            fig = px.bar(x=median_price_by_room.index, y=median_price_by_room.values,
+                        title="Median Price by Room Type",
+                        labels={'x': 'Room Type', 'y': 'Median Price ($)'},
+                        color=median_price_by_room.values,
+                        color_continuous_scale='coolwarm')
+            st.plotly_chart(fig, use_container_width=True)
+            st.info("💰 **Median Pricing:** Shows the middle-point price for each room type, less affected by outliers than average.")
     
     # Price ranges analysis
     st.markdown("### 💵 **Price Range Analysis**")
