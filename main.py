@@ -476,10 +476,7 @@ elif page == "EDA":
     col1, col2 = st.columns(2)
     
     with col1:
-        # Create price ranges for better understanding
-        df['price_range'] = pd.cut(df['price'], 
-                                  bins=[0, 50, 100, 200, 500, float('inf')], 
-                                  labels=['Under $50', '$50-100', '$100-200', '$200-500', 'Over $500'])
+        # Use the price_range already created above
         price_range_counts = df['price_range'].value_counts().sort_index()
         
         fig = px.bar(x=price_range_counts.index, y=price_range_counts.values,
