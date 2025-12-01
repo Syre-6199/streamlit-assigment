@@ -312,8 +312,21 @@ elif page == "EDA":
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
             
-            # Fill missing values
-            df = df.fillna(0)
+            # Fill missing values for numeric columns only
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            df[numeric_cols] = df[numeric_cols].fillna(0)
+
+            # Map numeric room_type codes to readable labels for EDA clarity
+            if 'room_type' in df.columns:
+                # try to coerce to integer codes then map to labels
+                room_codes = pd.to_numeric(df['room_type'], errors='coerce').fillna(0).astype(int)
+                room_map = {
+                    1: 'Entire home/apt',
+                    2: 'Private room',
+                    3: 'Shared room',
+                    4: 'Hotel room'
+                }
+                df['room_type'] = room_codes.map(room_map).fillna('Other')
             
             return df
             
@@ -322,6 +335,10 @@ elif page == "EDA":
             return pd.DataFrame()
     
     df = load_airbnb_data()
+
+    # Show room type legend if codes were mapped
+    if 'room_type' in df.columns:
+        st.markdown("**Room type labels:** 1 → Entire home/apt, 2 → Private room, 3 → Shared room, 4 → Hotel room")
     
     st.subheader("📋 Dataset Overview")
     col1, col2, col3, col4 = st.columns(4)
@@ -358,21 +375,36 @@ elif page == "EDA":
         unique_cities = df['city'].nunique() if 'city' in df.columns else 0
         st.metric("Cities", unique_cities)
     
-    # Price distribution
+    # Price distribution (simpler, more readable)
     st.subheader("💰 Price Analysis")
     col1, col2 = st.columns(2)
-    
+
     with col1:
-        fig = px.histogram(df, x='price', title="Price Distribution", 
-                          labels={'price': 'Price ($)', 'count': 'Number of Listings'})
-        st.plotly_chart(fig, width='stretch')
-        st.info("📊 **Insight:** Most Airbnb listings are priced between $50-200, with a right-skewed distribution indicating some premium properties at higher price points.")
-    
+        # Create clear price range buckets and show counts
+        df['price_range'] = pd.cut(df['price'], 
+                                  bins=[0, 50, 100, 200, 500, float('inf')], 
+                                  labels=['Under $50', '$50-100', '$100-200', '$200-500', 'Over $500'])
+        price_range_counts = df['price_range'].value_counts().sort_index()
+
+        fig = px.bar(x=price_range_counts.index, y=price_range_counts.values,
+                     title="Listings by Price Range",
+                     labels={'x': 'Price Range', 'y': 'Number of Listings'},
+                     color=price_range_counts.values,
+                     color_continuous_scale='blues')
+        st.plotly_chart(fig, use_container_width=True)
+        st.info("Most listings fall in the $50-200 range. Use this to quickly see market concentration by price bands.")
+
     with col2:
+        # Show average price per room type as a simple bar chart for easy comparison
         if 'room_type' in df.columns:
-            fig = px.box(df, x='room_type', y='price', title="Price by Room Type")
-            st.plotly_chart(fig, width='stretch')
-            st.info("🏠 **Key Finding:** Entire homes command the highest prices, followed by private rooms, with shared rooms being the most affordable option.")
+            avg_price_by_room = df.groupby('room_type')['price'].mean().sort_values(ascending=False)
+            fig = px.bar(x=avg_price_by_room.index, y=avg_price_by_room.values,
+                        title="Average Price by Room Type",
+                        labels={'x': 'Room Type', 'y': 'Average Price ($)'},
+                        color=avg_price_by_room.values,
+                        color_continuous_scale='viridis')
+            st.plotly_chart(fig, use_container_width=True)
+            st.info("Average prices by room type — easier to compare than boxplots for quick summaries.")
     
     # Room type analysis
     if 'room_type' in df.columns:
