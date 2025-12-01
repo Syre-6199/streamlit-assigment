@@ -337,9 +337,9 @@ elif page == "EDA":
     
     df = load_airbnb_data()
 
-    # Show room type legend if codes were mapped (keep consistent with mapping above)
+    # Show room type legend if codes were mapped
     if 'room_type' in df.columns:
-        st.markdown("**Room type labels:** 1 → Shared room, 2 → Private room, 3 → Entire home/apt, 4 → Hotel room")
+        st.markdown("**Room type labels:** 1 → Entire home/apt, 2 → Private room, 3 → Shared room, 4 → Hotel room")
     
     st.subheader("📋 Dataset Overview")
     col1, col2, col3, col4 = st.columns(4)
@@ -534,111 +534,90 @@ elif page == "EDA":
         fig_y.update_layout(showlegend=False)
         st.plotly_chart(fig_y, use_container_width=True)
     
-    # Create 2D relationship analysis with options: density heatmap, sampled scatter + contour, or sampled scatter
-    st.markdown(f"#### Relationship Analysis")
-    vis_option = st.selectbox("Choose relationship view:",
-                              [
-                                  "Hexbin (2D binned heatmap)",
-                                  "Density heatmap (smoothed)",
-                                  "Sampled scatter + contour",
-                                  "Scatter matrix (sampled)",
-                                  "Sampled scatter (with marginals)"
-                              ],
-                              index=0)
+    # Relationship Analysis — simplified for non-technical users
+    st.markdown("#### Relationship Analysis — clear visuals for everyone")
+    st.markdown("Choose a visualization that is easy to understand; hover over elements to inspect values.")
 
-    # Controls for sampling and log-scaling
-    col_a, col_b, col_c = st.columns([1, 1, 1])
-    with col_a:
-        sample_frac = st.slider("Scatter sample fraction", min_value=0.01, max_value=0.5, value=0.05, step=0.01,
-                                help="Fraction of rows to plot as points to avoid overplotting")
-    with col_b:
-        log_x = st.checkbox("Log scale X axis", value=False)
-    with col_c:
-        log_y = st.checkbox("Log scale Y axis", value=False)
+    view = st.selectbox("Choose view:", [
+        "Simple scatter (sampled) with trendline",
+        "2D binned heatmap (density)",
+        "Boxplot by room type",
+        "Scatter with marginals (sampled)"
+    ])
 
-    # Build and render selected visualization
-    if vis_option == "Hexbin (2D binned heatmap)":
-        # Hexbin-like 2D binned histogram using Histogram2d
-        fig = go.Figure(data=go.Histogram2d(
-            x=df[x_feature].dropna(),
-            y=df[y_feature].dropna(),
-            nbinsx=40,
-            nbinsy=40,
-            colorscale='Viridis',
-            colorbar=dict(title='Count')
-        ))
-        fig.update_layout(title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - 2D Binned Heatmap (Hex-like)")
-        if log_x:
-            fig.update_xaxes(type='log')
-        if log_y:
-            fig.update_yaxes(type='log')
-        st.plotly_chart(fig, use_container_width=True)
+    # Controls: sampling and log-scale
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c1:
+        sample_frac = st.slider("Point sample fraction", 0.01, 0.5, 0.05, 0.01,
+                                help="Plot only a fraction of points to keep charts readable and fast")
+    with c2:
+        log_x = st.checkbox("Log scale X", value=False)
+    with c3:
+        log_y = st.checkbox("Log scale Y", value=False)
 
-    elif vis_option == "Density heatmap (smoothed)":
-        fig = px.density_heatmap(df, x=x_feature, y=y_feature, nbinsx=30, nbinsy=30,
-                                 title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Density Heatmap",
-                                 labels={x_feature: x_feature.replace('_', ' ').title(),
-                                         y_feature: y_feature.replace('_', ' ').title()},
-                                 color_continuous_scale='Blues')
-        if log_x:
-            fig.update_xaxes(type='log')
-        if log_y:
-            fig.update_yaxes(type='log')
-        st.plotly_chart(fig, use_container_width=True)
-
-    elif vis_option == "Sampled scatter + contour":
-        # density contour (smooth) + sampled scatter overlay
-        contour = px.density_contour(df, x=x_feature, y=y_feature, title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Contour + Sampled Points",
-                                    labels={x_feature: x_feature.replace('_', ' ').title(),
-                                            y_feature: y_feature.replace('_', ' ').title()},
-                                    color_continuous_scale='Blues')
-        # sample points to avoid overplotting
+    # Render selected view
+    if view == "Simple scatter (sampled) with trendline":
+        st.markdown("**What this shows:** a small sample of listings (points). The red dashed line is a simple trend so non-technical users can see whether values generally increase or decrease together.")
         try:
             sample_df = df.sample(frac=sample_frac)
         except Exception:
             sample_df = df.copy()
 
-        # color by room_type if available, otherwise no color
         if 'room_type' in df.columns:
-            scatter = px.scatter(sample_df, x=x_feature, y=y_feature, color='room_type', opacity=0.6,
-                                 labels={x_feature: x_feature.replace('_', ' ').title(), y_feature: y_feature.replace('_', ' ').title()})
+            fig = px.scatter(sample_df, x=x_feature, y=y_feature, color='room_type', opacity=0.6,
+                             title=f"{x_feature.replace('_',' ').title()} vs {y_feature.replace('_',' ').title()} — Sampled Scatter")
         else:
-            scatter = px.scatter(sample_df, x=x_feature, y=y_feature, opacity=0.6,
-                                 labels={x_feature: x_feature.replace('_', ' ').title(), y_feature: y_feature.replace('_', ' ').title()})
+            fig = px.scatter(sample_df, x=x_feature, y=y_feature, opacity=0.6,
+                             title=f"{x_feature.replace('_',' ').title()} vs {y_feature.replace('_',' ').title()} — Sampled Scatter")
 
-        # overlay scatter traces onto contour figure
-        for trace in scatter.data:
-            contour.add_trace(trace)
+        # Add a simple linear trendline computed on the sampled points
+        try:
+            clean = sample_df[[x_feature, y_feature]].dropna()
+            if len(clean) > 10:
+                xs = clean[x_feature].astype(float).values
+                ys = clean[y_feature].astype(float).values
+                m, b = np.polyfit(xs, ys, 1)
+                x_line = np.linspace(xs.min(), xs.max(), 100)
+                y_line = m * x_line + b
+                fig.add_trace(go.Scatter(x=x_line, y=y_line, mode='lines', name='Trend', line=dict(color='red', dash='dash')))
+        except Exception:
+            pass
 
         if log_x:
-            contour.update_xaxes(type='log')
+            fig.update_xaxes(type='log')
         if log_y:
-            contour.update_yaxes(type='log')
+            fig.update_yaxes(type='log')
 
-        st.plotly_chart(contour, use_container_width=True)
-
-    elif vis_option == "Scatter matrix (sampled)":
-        # Show a sampled scatter matrix for top numeric features (includes selected features)
-        try:
-            sample_df = df.sample(frac=max(sample_frac, 0.02))
-        except Exception:
-            sample_df = df.copy()
-
-        # Build dimensions: ensure x_feature and y_feature included, add up to 6 numeric features
-        extra_dims = [f for f in numeric_features if f not in [x_feature, y_feature]]
-        dims = [x_feature, y_feature] + extra_dims[:4]
-
-        if 'room_type' in df.columns:
-            fig = px.scatter_matrix(sample_df, dimensions=dims, color='room_type', title='Scatter Matrix (sampled)')
-        else:
-            fig = px.scatter_matrix(sample_df, dimensions=dims, title='Scatter Matrix (sampled)')
-
-        # Improve marker sizing for readability
-        fig.update_traces(marker=dict(size=3))
         st.plotly_chart(fig, use_container_width=True)
 
+    elif view == "2D binned heatmap (density)":
+        st.markdown("**What this shows:** colored bins where darker areas indicate many listings — good for dense data.")
+        fig = go.Figure(data=go.Histogram2d(
+            x=df[x_feature].dropna(),
+            y=df[y_feature].dropna(),
+            nbinsx=30,
+            nbinsy=30,
+            colorscale='Viridis',
+            colorbar=dict(title='Count')
+        ))
+        fig.update_layout(title=f"{x_feature.replace('_',' ').title()} vs {y_feature.replace('_',' ').title()} — 2D Binned Heatmap")
+        if log_x:
+            fig.update_xaxes(type='log')
+        if log_y:
+            fig.update_yaxes(type='log')
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif view == "Boxplot by room type":
+        if 'room_type' not in df.columns:
+            st.info("No categorical `room_type` column available. Try a scatter or heatmap instead.")
+        else:
+            st.markdown("**What this shows:** distribution of the selected numeric feature for each room type — easy to compare medians and spread.")
+            fig = px.box(df, x='room_type', y=y_feature, color='room_type', points='outliers',
+                         title=f"{y_feature.replace('_',' ').title()} by Room Type")
+            st.plotly_chart(fig, use_container_width=True)
+
     else:
-        # Sampled scatter with marginals for context
+        st.markdown("**What this shows:** sampled points with marginal histograms to show both joint and individual distributions.")
         try:
             sample_df = df.sample(frac=sample_frac)
         except Exception:
@@ -647,13 +626,11 @@ elif page == "EDA":
         if 'room_type' in df.columns:
             fig = px.scatter(sample_df, x=x_feature, y=y_feature, color='room_type', opacity=0.6,
                              marginal_x='histogram', marginal_y='histogram',
-                             title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Sampled Scatter with Marginals",
-                             labels={x_feature: x_feature.replace('_', ' ').title(), y_feature: y_feature.replace('_', ' ').title()})
+                             title=f"{x_feature.replace('_',' ').title()} vs {y_feature.replace('_',' ').title()} — Scatter with Marginals")
         else:
             fig = px.scatter(sample_df, x=x_feature, y=y_feature, opacity=0.6,
                              marginal_x='histogram', marginal_y='histogram',
-                             title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Sampled Scatter with Marginals",
-                             labels={x_feature: x_feature.replace('_', ' ').title(), y_feature: y_feature.replace('_', ' ').title()})
+                             title=f"{x_feature.replace('_',' ').title()} vs {y_feature.replace('_',' ').title()} — Scatter with Marginals")
 
         if log_x:
             fig.update_xaxes(type='log')
@@ -662,26 +639,26 @@ elif page == "EDA":
 
         st.plotly_chart(fig, use_container_width=True)
 
-    # Show correlation statistics
-    correlation = df[x_feature].corr(df[y_feature])
-    
-    if correlation > 0.5:
-        relationship = "🔵 Strong Positive"
-        emoji = "📈"
-    elif correlation > 0.2:
-        relationship = "🟢 Moderate Positive"
-        emoji = "📊"
-    elif correlation < -0.5:
-        relationship = "🔴 Strong Negative"
-        emoji = "📉"
-    elif correlation < -0.2:
-        relationship = "🟠 Moderate Negative"
-        emoji = "📊"
-    else:
-        relationship = "⚪ Weak/No Relationship"
-        emoji = "➡️"
-    
-    st.info(f"{emoji} **Correlation: {correlation:.3f}** — {relationship}")
+    # Simple plain-language correlation summary for non-technical users
+    try:
+        correlation = df[x_feature].corr(df[y_feature])
+        if pd.isna(correlation):
+            st.info("Not enough data to compute correlation.")
+        else:
+            if abs(correlation) > 0.6:
+                strength = "strong"
+            elif abs(correlation) > 0.3:
+                strength = "moderate"
+            else:
+                strength = "weak"
+
+            direction = "positive" if correlation > 0 else "negative" if correlation < 0 else "no"
+            if direction == 'no':
+                st.info(f"Correlation: {correlation:.2f}. There appears to be no clear linear relationship between the two features.")
+            else:
+                st.info(f"Correlation: {correlation:.2f}. This indicates a {strength}, {direction} relationship — as {x_feature.replace('_',' ')} changes, {y_feature.replace('_',' ')} tends to {'increase' if correlation>0 else 'decrease'}.")
+    except Exception:
+        st.info("Could not compute correlation summary.")
 
 # Prediction Page
 elif page == "Prediction":
