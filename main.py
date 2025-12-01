@@ -4,8 +4,10 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.pipeline import make_pipeline
 
 # Configure page
 st.set_page_config(
@@ -295,7 +297,7 @@ elif page == "EDA":
             df = pd.read_csv('Airbnb_site_hotel new.csv')
             
             # Remove ID columns that are not useful for analysis
-            columns_to_remove = ['id', 'host_id']
+            columns_to_remove = ['id', 'host_id', 'host_name', 'listingh number', 'listing number', 'listing_number']
             df = df.drop(columns=[col for col in columns_to_remove if col in df.columns])
             
             # Clean the data
@@ -521,7 +523,7 @@ elif page == "Prediction":
             df = pd.read_csv('Airbnb_site_hotel new.csv')
             
             # Remove ID columns that are not useful for prediction
-            columns_to_remove = ['id', 'host_id']
+            columns_to_remove = ['id', 'host_id', 'host_name', 'listingh number', 'listing number', 'listing_number']
             df = df.drop(columns=[col for col in columns_to_remove if col in df.columns])
             
             # Clean the data for prediction
@@ -591,11 +593,22 @@ elif page == "Prediction":
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
     # Train model
-    model = LinearRegression()
-    model.fit(X_train, y_train)
-    
-    # Predictions
-    y_pred = model.predict(X_test)
+    # Improve model: log-transform target, polynomial features + Ridge regression
+    # log1p helps stabilize skewed price distribution
+    y_train_log = np.log1p(y_train)
+    y_test_log = np.log1p(y_test)
+
+    pipeline = make_pipeline(
+        PolynomialFeatures(degree=2, include_bias=False),
+        StandardScaler(),
+        Ridge(alpha=1.0)
+    )
+
+    pipeline.fit(X_train, y_train_log)
+
+    # Predict on log scale then invert with expm1
+    y_pred_log = pipeline.predict(X_test)
+    y_pred = np.expm1(y_pred_log)
     
     st.success(f"✅ **Model trained on {len(X)} listings** after removing outliers and missing values for optimal performance.")
     
@@ -664,16 +677,21 @@ elif page == "Prediction":
     else:
         st.error(f"❌ **{performance}** - Our AI can predict Airbnb prices with {r2*100:.1f}% accuracy using property features.")
     
-    # Feature importance
-    st.subheader("🎯 Feature Importance")
-    feature_importance = pd.DataFrame({
-        'Feature': available_features,
-        'Importance': np.abs(model.coef_)
-    }).sort_values('Importance', ascending=False)
-    
-    fig = px.bar(feature_importance, x='Feature', y='Importance',
-                 title="Feature Importance for Price Prediction")
-    st.plotly_chart(fig, width='stretch')
+    # Feature importance (approx): fit a simple linear model on the log-target
+    st.subheader("🎯 Feature Importance (approx.)")
+    try:
+        simple_lin = LinearRegression()
+        simple_lin.fit(X_train, y_train_log)
+        feature_importance = pd.DataFrame({
+            'Feature': X_train.columns,
+            'Importance': np.abs(simple_lin.coef_)
+        }).sort_values('Importance', ascending=False)
+
+        fig = px.bar(feature_importance, x='Feature', y='Importance',
+                     title="Approximate Feature Importance (absolute coeffs on log-target)")
+        st.plotly_chart(fig, width='stretch')
+    except Exception:
+        st.info("Feature importance could not be computed.")
     
     # Interactive prediction
     st.subheader("🔮 Predict Airbnb Price")
@@ -717,7 +735,9 @@ elif page == "Prediction":
     
     # Make prediction
     input_array = np.array([[user_input[feature] for feature in available_features]])
-    predicted_price = model.predict(input_array)[0]
+    # Predict on log scale then invert
+    predicted_price_log = pipeline.predict(input_array)[0]
+    predicted_price = np.expm1(predicted_price_log)
     
     st.success(f"💰 Predicted Airbnb Price: ${predicted_price:.2f}")
     
