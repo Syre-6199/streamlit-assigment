@@ -467,8 +467,7 @@ elif page == "EDA":
             fig = px.bar(x=median_price_by_room.index, y=median_price_by_room.values,
                         title="Median Price by Room Type",
                         labels={'x': 'Room Type', 'y': 'Median Price ($)'},
-                        color=median_price_by_room.values,
-                        color_continuous_scale='coolwarm')
+                        color_discrete_sequence=['#1f77b4'])
             st.plotly_chart(fig, use_container_width=True)
             st.info("💰 **Median Pricing:** Shows the middle-point price for each room type, less affected by outliers than average.")
     
