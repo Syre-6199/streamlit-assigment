@@ -903,17 +903,19 @@ elif page == "Prediction":
                     value=info['default'],
                     step=1
                 )
+    # end for available_features
 
-        # Room type selection matrix (horizontal checkboxes) — optional selection can adjust prediction
-        selected_room_types = []
-        if room_type_ratios:
-            st.markdown("**Select room type(s) — affects predicted price (heuristic adjustment):**")
-            cols_rt = st.columns(len(room_type_ratios))
-            for idx, (rt, ratio) in enumerate(room_type_ratios.items()):
-                with cols_rt[idx]:
-                    checked = st.checkbox(rt, value=False, key=f"rt_{idx}")
-                    if checked:
-                        selected_room_types.append(rt)
+    # Room type selection matrix (horizontal checkboxes) — optional selection can adjust prediction
+    selected_room_types = []
+    if room_type_ratios:
+        st.markdown("**Select room type(s) — affects predicted price (heuristic adjustment):**")
+        cols_rt = st.columns(len(room_type_ratios))
+        for idx, (rt, ratio) in enumerate(room_type_ratios.items()):
+            with cols_rt[idx]:
+                # use a stable key per room type
+                checked = st.checkbox(rt, value=False, key=f"rt_{idx}")
+                if checked:
+                    selected_room_types.append(rt)
     
     # Make prediction
     input_array = np.array([[user_input[feature] for feature in available_features]])
