@@ -511,34 +511,40 @@ elif page == "EDA":
         y_feature = st.selectbox("Select Second Feature:", numeric_features, 
                                 index=numeric_features.index('accommodates') if 'accommodates' in numeric_features else 1)
     
-    # Create a cleaner scatter plot
-    sample_df = df.sample(min(1000, len(df))) if len(df) > 1000 else df
-    fig = px.scatter(sample_df, x=x_feature, y=y_feature, 
-                     title=f"Relationship: {x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()}",
-                     opacity=0.7)
-    fig.update_traces(marker=dict(size=6, color='steelblue'))
-    fig.update_layout(showlegend=False)
+    # Create a simple, clean scatter plot with larger sample for clarity
+    sample_size = min(500, len(df))
+    sample_df = df.sample(sample_size, random_state=42)
+    
+    fig = px.scatter(sample_df, x=x_feature, y=y_feature,
+                     title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()}",
+                     labels={x_feature: x_feature.replace('_', ' ').title(),
+                             y_feature: y_feature.replace('_', ' ').title()},
+                     color_discrete_sequence=['#1f77b4'])
+    
+    fig.update_traces(marker=dict(size=5, opacity=0.6))
+    fig.update_layout(showlegend=False, hovermode='closest')
     st.plotly_chart(fig, use_container_width=True)
     
-    # Explain the relationship
+    # Show correlation statistics
     correlation = df[x_feature].corr(df[y_feature])
-    if correlation > 0.5:
-        relationship = "Strong Positive"
-        explanation = f"As {x_feature.replace('_', ' ')} increases, {y_feature.replace('_', ' ')} tends to increase significantly."
-    elif correlation > 0.2:
-        relationship = "Moderate Positive"  
-        explanation = f"As {x_feature.replace('_', ' ')} increases, {y_feature.replace('_', ' ')} tends to increase somewhat."
-    elif correlation < -0.5:
-        relationship = "Strong Negative"
-        explanation = f"As {x_feature.replace('_', ' ')} increases, {y_feature.replace('_', ' ')} tends to decrease significantly."
-    elif correlation < -0.2:
-        relationship = "Moderate Negative"
-        explanation = f"As {x_feature.replace('_', ' ')} increases, {y_feature.replace('_', ' ')} tends to decrease somewhat."
-    else:
-        relationship = "Weak/No"
-        explanation = f"There's little to no clear relationship between {x_feature.replace('_', ' ')} and {y_feature.replace('_', ' ')}."
     
-    st.warning(f"📈 **{relationship} Relationship** (Correlation: {correlation:.3f}): {explanation}")
+    if correlation > 0.5:
+        relationship = "🔵 Strong Positive"
+        emoji = "📈"
+    elif correlation > 0.2:
+        relationship = "🟢 Moderate Positive"
+        emoji = "📊"
+    elif correlation < -0.5:
+        relationship = "🔴 Strong Negative"
+        emoji = "📉"
+    elif correlation < -0.2:
+        relationship = "🟠 Moderate Negative"
+        emoji = "📊"
+    else:
+        relationship = "⚪ Weak/No Relationship"
+        emoji = "➡️"
+    
+    st.info(f"{emoji} **Correlation: {correlation:.3f}** — {relationship}")
 
 # Prediction Page
 elif page == "Prediction":
