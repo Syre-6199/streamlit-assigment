@@ -537,7 +537,13 @@ elif page == "EDA":
     # Create 2D relationship analysis with options: density heatmap, sampled scatter + contour, or sampled scatter
     st.markdown(f"#### Relationship Analysis")
     vis_option = st.selectbox("Choose relationship view:",
-                              ["Density heatmap (default)", "Sampled scatter + contour", "Sampled scatter (with marginals)"],
+                              [
+                                  "Hexbin (2D binned heatmap)",
+                                  "Density heatmap (smoothed)",
+                                  "Sampled scatter + contour",
+                                  "Scatter matrix (sampled)",
+                                  "Sampled scatter (with marginals)"
+                              ],
                               index=0)
 
     # Controls for sampling and log-scaling
@@ -551,7 +557,24 @@ elif page == "EDA":
         log_y = st.checkbox("Log scale Y axis", value=False)
 
     # Build and render selected visualization
-    if vis_option == "Density heatmap (default)":
+    if vis_option == "Hexbin (2D binned heatmap)":
+        # Hexbin-like 2D binned histogram using Histogram2d
+        fig = go.Figure(data=go.Histogram2d(
+            x=df[x_feature].dropna(),
+            y=df[y_feature].dropna(),
+            nbinsx=40,
+            nbinsy=40,
+            colorscale='Viridis',
+            colorbar=dict(title='Count')
+        ))
+        fig.update_layout(title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - 2D Binned Heatmap (Hex-like)")
+        if log_x:
+            fig.update_xaxes(type='log')
+        if log_y:
+            fig.update_yaxes(type='log')
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif vis_option == "Density heatmap (smoothed)":
         fig = px.density_heatmap(df, x=x_feature, y=y_feature, nbinsx=30, nbinsy=30,
                                  title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Density Heatmap",
                                  labels={x_feature: x_feature.replace('_', ' ').title(),
@@ -593,6 +616,26 @@ elif page == "EDA":
             contour.update_yaxes(type='log')
 
         st.plotly_chart(contour, use_container_width=True)
+
+    elif vis_option == "Scatter matrix (sampled)":
+        # Show a sampled scatter matrix for top numeric features (includes selected features)
+        try:
+            sample_df = df.sample(frac=max(sample_frac, 0.02))
+        except Exception:
+            sample_df = df.copy()
+
+        # Build dimensions: ensure x_feature and y_feature included, add up to 6 numeric features
+        extra_dims = [f for f in numeric_features if f not in [x_feature, y_feature]]
+        dims = [x_feature, y_feature] + extra_dims[:4]
+
+        if 'room_type' in df.columns:
+            fig = px.scatter_matrix(sample_df, dimensions=dims, color='room_type', title='Scatter Matrix (sampled)')
+        else:
+            fig = px.scatter_matrix(sample_df, dimensions=dims, title='Scatter Matrix (sampled)')
+
+        # Improve marker sizing for readability
+        fig.update_traces(marker=dict(size=3))
+        st.plotly_chart(fig, use_container_width=True)
 
     else:
         # Sampled scatter with marginals for context
