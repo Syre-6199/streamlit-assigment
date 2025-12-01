@@ -685,6 +685,17 @@ elif page == "Prediction":
             for col in numeric_columns:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
+
+            # Map numeric room_type codes to readable labels (keep consistent with EDA mapping)
+            if 'room_type' in df.columns:
+                room_codes = pd.to_numeric(df['room_type'], errors='coerce').fillna(0).astype(int)
+                room_map = {
+                    1: 'Shared room',
+                    2: 'Private room',
+                    3: 'Entire home/apt',
+                    4: 'Hotel room'
+                }
+                df['room_type'] = room_codes.map(room_map).fillna('Other')
             
             # Remove rows with missing price (our target) and extreme outliers
             df = df.dropna(subset=['price'])
@@ -845,6 +856,17 @@ elif page == "Prediction":
     # Interactive prediction
     st.subheader("🔮 Predict Airbnb Price")
     st.write("Enter the property details below to get an estimated price:")
+
+    # Build room_type adjustment ratios (heuristic) so predictions can reflect room type differences
+    room_type_ratios = None
+    if 'room_type' in df.columns:
+        try:
+            # Compute median price per room type on the filtered dataset used to train/predict
+            median_by_room = df[mask].groupby('room_type')['price'].median()
+            overall_median = df[mask]['price'].median()
+            room_type_ratios = (median_by_room / overall_median).to_dict()
+        except Exception:
+            room_type_ratios = None
     
     # Create number inputs based on available features
     user_input = {}
@@ -881,14 +903,40 @@ elif page == "Prediction":
                     value=info['default'],
                     step=1
                 )
+
+        # Room type selection matrix (horizontal checkboxes) — optional selection can adjust prediction
+        selected_room_types = []
+        if room_type_ratios:
+            st.markdown("**Select room type(s) — affects predicted price (heuristic adjustment):**")
+            cols_rt = st.columns(len(room_type_ratios))
+            for idx, (rt, ratio) in enumerate(room_type_ratios.items()):
+                with cols_rt[idx]:
+                    checked = st.checkbox(rt, value=False, key=f"rt_{idx}")
+                    if checked:
+                        selected_room_types.append(rt)
     
     # Make prediction
     input_array = np.array([[user_input[feature] for feature in available_features]])
     # Predict on log scale then invert
     predicted_price_log = pipeline.predict(input_array)[0]
     predicted_price = np.expm1(predicted_price_log)
+
+    # Apply room_type heuristic adjustment if the user selected any
+    adjusted_price = predicted_price
+    if selected_room_types and room_type_ratios:
+        try:
+            # average the ratios for multiple selections
+            ratios = [room_type_ratios.get(rt, 1.0) for rt in selected_room_types]
+            adj_ratio = float(np.mean(ratios)) if len(ratios) > 0 else 1.0
+            adjusted_price = predicted_price * adj_ratio
+        except Exception:
+            adjusted_price = predicted_price
     
-    st.success(f"💰 Predicted Airbnb Price: ${predicted_price:.2f}")
+    if adjusted_price != predicted_price:
+        st.success(f"💰 Predicted Airbnb Price: ${adjusted_price:.2f} (adjusted for selected room type)")
+        st.caption(f"Base predicted price: ${predicted_price:.2f}. Adjustment applied from selected room type(s). This is a simple heuristic — consider retraining model including room_type for more accurate results.")
+    else:
+        st.success(f"💰 Predicted Airbnb Price: ${predicted_price:.2f}")
     
     # Show input values
     st.subheader("📊 Input Summary")
