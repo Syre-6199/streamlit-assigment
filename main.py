@@ -320,10 +320,11 @@ elif page == "EDA":
             if 'room_type' in df.columns:
                 # try to coerce to integer codes then map to labels
                 room_codes = pd.to_numeric(df['room_type'], errors='coerce').fillna(0).astype(int)
+                # Swap codes 1 and 3: code 1 -> Shared room, code 3 -> Entire home/apt
                 room_map = {
-                    1: 'Entire home/apt',
+                    1: 'Shared room',
                     2: 'Private room',
-                    3: 'Shared room',
+                    3: 'Entire home/apt',
                     4: 'Hotel room'
                 }
                 df['room_type'] = room_codes.map(room_map).fillna('Other')
