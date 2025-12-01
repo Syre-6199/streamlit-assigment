@@ -337,9 +337,9 @@ elif page == "EDA":
     
     df = load_airbnb_data()
 
-    # Show room type legend if codes were mapped
+    # Show room type legend if codes were mapped (keep consistent with mapping above)
     if 'room_type' in df.columns:
-        st.markdown("**Room type labels:** 1 → Entire home/apt, 2 → Private room, 3 → Shared room, 4 → Hotel room")
+        st.markdown("**Room type labels:** 1 → Shared room, 2 → Private room, 3 → Entire home/apt, 4 → Hotel room")
     
     st.subheader("📋 Dataset Overview")
     col1, col2, col3, col4 = st.columns(4)
@@ -534,15 +534,91 @@ elif page == "EDA":
         fig_y.update_layout(showlegend=False)
         st.plotly_chart(fig_y, use_container_width=True)
     
-    # Create 2D histogram showing relationship
+    # Create 2D relationship analysis with options: density heatmap, sampled scatter + contour, or sampled scatter
     st.markdown(f"#### Relationship Analysis")
-    fig_2d = px.density_heatmap(df, x=x_feature, y=y_feature, nbinsx=20, nbinsy=20,
-                                title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Density Heatmap",
-                                labels={x_feature: x_feature.replace('_', ' ').title(),
-                                       y_feature: y_feature.replace('_', ' ').title()},
-                                color_continuous_scale='Blues')
-    st.plotly_chart(fig_2d, use_container_width=True)
-    
+    vis_option = st.selectbox("Choose relationship view:",
+                              ["Density heatmap (default)", "Sampled scatter + contour", "Sampled scatter (with marginals)"],
+                              index=0)
+
+    # Controls for sampling and log-scaling
+    col_a, col_b, col_c = st.columns([1, 1, 1])
+    with col_a:
+        sample_frac = st.slider("Scatter sample fraction", min_value=0.01, max_value=0.5, value=0.05, step=0.01,
+                                help="Fraction of rows to plot as points to avoid overplotting")
+    with col_b:
+        log_x = st.checkbox("Log scale X axis", value=False)
+    with col_c:
+        log_y = st.checkbox("Log scale Y axis", value=False)
+
+    # Build and render selected visualization
+    if vis_option == "Density heatmap (default)":
+        fig = px.density_heatmap(df, x=x_feature, y=y_feature, nbinsx=30, nbinsy=30,
+                                 title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Density Heatmap",
+                                 labels={x_feature: x_feature.replace('_', ' ').title(),
+                                         y_feature: y_feature.replace('_', ' ').title()},
+                                 color_continuous_scale='Blues')
+        if log_x:
+            fig.update_xaxes(type='log')
+        if log_y:
+            fig.update_yaxes(type='log')
+        st.plotly_chart(fig, use_container_width=True)
+
+    elif vis_option == "Sampled scatter + contour":
+        # density contour (smooth) + sampled scatter overlay
+        contour = px.density_contour(df, x=x_feature, y=y_feature, title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Contour + Sampled Points",
+                                    labels={x_feature: x_feature.replace('_', ' ').title(),
+                                            y_feature: y_feature.replace('_', ' ').title()},
+                                    color_continuous_scale='Blues')
+        # sample points to avoid overplotting
+        try:
+            sample_df = df.sample(frac=sample_frac)
+        except Exception:
+            sample_df = df.copy()
+
+        # color by room_type if available, otherwise no color
+        if 'room_type' in df.columns:
+            scatter = px.scatter(sample_df, x=x_feature, y=y_feature, color='room_type', opacity=0.6,
+                                 labels={x_feature: x_feature.replace('_', ' ').title(), y_feature: y_feature.replace('_', ' ').title()})
+        else:
+            scatter = px.scatter(sample_df, x=x_feature, y=y_feature, opacity=0.6,
+                                 labels={x_feature: x_feature.replace('_', ' ').title(), y_feature: y_feature.replace('_', ' ').title()})
+
+        # overlay scatter traces onto contour figure
+        for trace in scatter.data:
+            contour.add_trace(trace)
+
+        if log_x:
+            contour.update_xaxes(type='log')
+        if log_y:
+            contour.update_yaxes(type='log')
+
+        st.plotly_chart(contour, use_container_width=True)
+
+    else:
+        # Sampled scatter with marginals for context
+        try:
+            sample_df = df.sample(frac=sample_frac)
+        except Exception:
+            sample_df = df.copy()
+
+        if 'room_type' in df.columns:
+            fig = px.scatter(sample_df, x=x_feature, y=y_feature, color='room_type', opacity=0.6,
+                             marginal_x='histogram', marginal_y='histogram',
+                             title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Sampled Scatter with Marginals",
+                             labels={x_feature: x_feature.replace('_', ' ').title(), y_feature: y_feature.replace('_', ' ').title()})
+        else:
+            fig = px.scatter(sample_df, x=x_feature, y=y_feature, opacity=0.6,
+                             marginal_x='histogram', marginal_y='histogram',
+                             title=f"{x_feature.replace('_', ' ').title()} vs {y_feature.replace('_', ' ').title()} - Sampled Scatter with Marginals",
+                             labels={x_feature: x_feature.replace('_', ' ').title(), y_feature: y_feature.replace('_', ' ').title()})
+
+        if log_x:
+            fig.update_xaxes(type='log')
+        if log_y:
+            fig.update_yaxes(type='log')
+
+        st.plotly_chart(fig, use_container_width=True)
+
     # Show correlation statistics
     correlation = df[x_feature].corr(df[y_feature])
     
